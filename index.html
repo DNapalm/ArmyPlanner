@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#131316" />
+<title>Army Forge</title>
+<link rel="manifest" href="manifest.json" />
+<style>
+  html, body { margin: 0; background: #131316; height: 100%; }
+  #root { min-height: 100%; }
+  #boot-error {
+    display: none; color: #f3f3f5; font-family: monospace;
+    padding: 20px; white-space: pre-wrap; font-size: 12px;
+  }
+  #boot-loading {
+    color: #8b8b92; font-family: system-ui, sans-serif; font-size: 14px;
+    padding: 40px; text-align: center;
+  }
+</style>
+
+<!-- React, ReactDOM y Babel (para poder usar JSX sin paso de compilación) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"><div id="boot-loading">Cargando…</div></div>
+<pre id="boot-error"></pre>
+
+<!-- Datos de cada juego, cada uno en su propio archivo -->
+<script src="data-aos.js"></script>
+<script src="data-extras.js"></script>
+<script src="data-w40k.js"></script>
+
+<!-- Arranque: descarga app.js, lo compila con Babel (JSX -> JS normal) y lo ejecuta -->
+<script>
+(function () {
+  function showError(err) {
+    var el = document.getElementById('boot-error');
+    el.style.display = 'block';
+    el.textContent = 'No se pudo iniciar la app:\n\n' + (err && err.stack ? err.stack : err);
+  }
+  fetch('app.js')
+    .then(function (r) {
+      if (!r.ok) throw new Error('No se pudo cargar app.js (' + r.status + ')');
+      return r.text();
+    })
+    .then(function (src) {
+      var compiled = Babel.transform(src, {
+        presets: [['react', { runtime: 'classic' }]]
+      }).code;
+      var runApp = new Function('React', 'ReactDOM', compiled + '\nreturn ArmyBuilder;');
+      var ArmyBuilder = runApp(React, ReactDOM);
+      var root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(React.createElement(ArmyBuilder));
+    })
+    .catch(function (err) {
+      showError(err);
+      console.error(err);
+    });
+})();
+</script>
+</body>
+</html>
