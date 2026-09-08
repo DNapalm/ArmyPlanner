@@ -1337,9 +1337,9 @@ function GameApp({ system, onExit }) {
 function MainMenu({ onSelect }) {
   return (
     <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box" }}>
-      <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
-        ARMY PLANNER
-      </div>
+     <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 24 }}>
+     ARMY PLANNER
+   </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
