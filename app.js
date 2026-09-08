@@ -408,7 +408,6 @@ function GenericDetail({ unit, onClose }) {
               {unit.keywords.map((k) => <Pill key={k}>{k}</Pill>)}
             </div>
           )}
-          <div style={{ fontSize: 10.5, color: MUTED, marginTop: 10 }}>Fuente: BSData (comunidad) — verifica puntos en la app oficial antes de un torneo.</div>
 
           <WeaponTable title="Armas cuerpo a cuerpo" columns={unit.meleeCols} rows={unit.meleeRows} />
           <WeaponTable title="Armas a distancia" columns={unit.rangedCols} rows={unit.rangedRows} />
@@ -1354,8 +1353,6 @@ function MainMenu({ onSelect }) {
       <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
         Army Forge
       </div>
-      <div style={{ fontSize: 13, color: MUTED, textAlign: "center", marginTop: 6, marginBottom: 40 }}>Elige tu juego</div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
