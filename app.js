@@ -1282,7 +1282,7 @@ function FullDatabase({ system, onOpenDetail }) {
 }
 
 /* =================================================================
-   NAVEGACIÓN DE UN JUEGO (Mis ejércitos / Base de datos)
+   NAVEGACIÓN (Mis ejércitos / Base de datos)
 ================================================================= */
 function BottomTab({ active, label, icon, onClick }) {
   return (
@@ -1345,7 +1345,7 @@ function GameApp({ system, onExit }) {
 }
 
 /* =================================================================
-   MENÚ PRINCIPAL: elegir juego
+   MENÚ PRINCIPAL
 ================================================================= */
 function MainMenu({ onSelect }) {
   return (
