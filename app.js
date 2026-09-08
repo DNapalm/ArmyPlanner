@@ -28,10 +28,7 @@ const AOS_FACTIONS = Object.keys(AOS_DB).sort();
 const W40K_FACTIONS = Object.keys(W40K_DB).sort();
 
 /* -----------------------------------------------------------------
-   Paleta: mismo patrón de tarjetas y formas que ListForge, pero en
-   tonos oscuros suaves — sin el salto fuerte negro/blanco. Todo el
-   esquema se mueve en grises cálidos oscuros con poco contraste
-   entre capas.
+   Colorillos
 ----------------------------------------------------------------- */
 const BG = "#131316";
 const SECTION = "#1b1b1f";
@@ -58,12 +55,9 @@ const GENERAL_BG = "#26221a";
 function systemAccent(system) { return system === "w40k" ? W40K_ACCENT : GOLD; }
 function cardShadow() { return "0 2px 6px rgba(0,0,0,0.35)"; }
 
-/* -----------------------------------------------------------------
-   Normalización a una forma común para la UI: cada unidad expone
-   statPills (lista ordenada label/valor) y tablas de armas ya
-   formadas con sus propias columnas, para que el resto de la app
-   no necesite saber si es AoS o 40k.
------------------------------------------------------------------ */
+
+
+
 function normalizeAos(faction, raw) {
   const meleeCols = [
     { k: "name", l: "Arma" }, { k: "Atk", l: "Atq" }, { k: "Hit", l: "Impacto" },
@@ -139,13 +133,6 @@ const POINTS_LIMIT_W40K = 2000;
    mezclar listas de AoS y 40k.
    Tres niveles, de mejor a peor, para que la app SIEMPRE funcione
    sea cual sea el sitio donde se esté viendo este archivo:
-   1. window.storage — API de artefactos interactivos de Claude.
-   2. localStorage — navegador normal, PWA/APK empaquetada.
-   3. Memoria en la propia pestaña — red de seguridad para vistas
-      previas en sandbox donde ni siquiera localStorage esté
-      permitido (por ejemplo, el visor de archivos del chat). En
-      este último caso los datos NO sobreviven a cerrar o recargar
-      la pestaña, pero la app deja de romperse.
 ----------------------------------------------------------------- */
 const memoryStore = new Map();
 
@@ -1351,7 +1338,7 @@ function MainMenu({ onSelect }) {
   return (
     <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box" }}>
       <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
-        Army Forge
+        ARMY PLANNER
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button onClick={() => onSelect("aos")}
