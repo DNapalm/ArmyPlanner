@@ -1672,8 +1672,7 @@ function GameApp({ system, onExit }) {
     <div style={{ paddingBottom: 66 }}>
       <div style={{ padding: "16px 18px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <button onClick={onExit} style={{ background: "none", border: "none", color: MUTED, fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 5 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-          Juego
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>{cfg.label}</div>
@@ -1713,12 +1712,10 @@ function GameApp({ system, onExit }) {
 ================================================================= */
 function MainMenu({ onSelect }) {
   return (
-    <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box" }}>
+    <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box",  marginBottom: 40}}>
       <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
-        Army Forge
+        Army Planner
       </div>
-      <div style={{ fontSize: 13, color: MUTED, textAlign: "center", marginTop: 6, marginBottom: 40 }}>Elige tu juego</div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
