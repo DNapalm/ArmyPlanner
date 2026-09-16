@@ -1720,7 +1720,7 @@ function MainMenu({ onSelect }) {
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <img src="aos.png" style={{ width: "100%", maxHeight: 90, objectFit: "contain" }} />
+          <img src="aos.png" style={{ width: "100%", maxHeight: 150, objectFit: "contain" }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
             <span style={{ fontSize: 12, color: CARD_SUB }}>{AOS_FACTIONS.length} facciones registradas</span>
             <Pill>4ª Ed.</Pill>
@@ -1729,7 +1729,7 @@ function MainMenu({ onSelect }) {
         <button onClick={() => onSelect("w40k")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <img src="wh40k.png" style={{ width: "100%", maxHeight: 90, objectFit: "contain" }} />
+          <img src="wh40k.png" style={{ width: "100%", maxHeight: 150, objectFit: "contain" }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
             <span style={{ fontSize: 12, color: CARD_SUB }}>{W40K_FACTIONS.length} facciones registradas</span>
             <Pill>11ª Ed.</Pill>
