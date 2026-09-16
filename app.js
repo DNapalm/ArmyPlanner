@@ -1049,6 +1049,7 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
         const isGeneral = r.hero && r.hero.instId === army.generalId;
         const isOpen = collapsedRegs[r.id] !== true;
         const isDragOver = dragOverIdx === idx;
+        const regPoints = (r.hero ? (r.hero.points || 0) : 0) + r.units.reduce((sum, u) => sum + (u.points || 0), 0);
         return (
           <div
             key={r.id}
@@ -1065,6 +1066,7 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
               kind="regiment" color={accent} expanded={isOpen} onToggle={() => toggleReg(r.id)}
               right={
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Pill>{regPoints} pts</Pill>
                   <span title="Arrastra para reordenar" style={{ cursor: "grab", color: MUTED, fontSize: 14, lineHeight: 1, userSelect: "none", padding: "0 2px" }}>⠿</span>
                   <button onClick={() => reorderRegiments(idx, idx - 1)} disabled={idx === 0} title="Subir"
                     style={{ background: "none", border: "none", color: idx === 0 ? "#3a3a40" : MUTED, cursor: idx === 0 ? "default" : "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>▲</button>
