@@ -1712,8 +1712,8 @@ function GameApp({ system, onExit }) {
 ================================================================= */
 function MainMenu({ onSelect }) {
   return (
-    <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box",  marginBottom: 40}}>
-      <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
+    <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box"}}>
+      <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 40 }}>
         Army Planner
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
