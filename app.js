@@ -702,6 +702,65 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
   }, [toast]);
   const toggleReg = (id) => setCollapsedRegs((c) => ({ ...c, [id]: !c[id] }));
 
+  // OJO: este efecto tiene que ir aquí, ANTES del "if (!army) return" de más abajo.
+  // React exige que los Hooks se llamen siempre en el mismo orden en cada render;
+  // si se coloca después del return anticipado, en el primer render (army aún null)
+  // este Hook no se ejecuta, y en el siguiente (army ya cargado) sí — eso rompe las
+  // reglas de los Hooks y provoca que React se caiga con la pantalla en blanco.
+  useEffect(() => {
+    if (!army) return;
+    loadCollection(system).then((c) => setMyCollection(c[army.faction] || {}));
+  }, [system, army && army.faction]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Este efecto también estaba mal colocado (después del "if (!army) return" de más
+  // abajo) desde que se implementó el arrastre de tropas entre regimientos — se movió
+  // aquí arriba por el mismo motivo: los Hooks deben llamarse siempre en el mismo orden.
+  useEffect(() => {
+    if (!dragInfo) return;
+    function getPoint(e) {
+      if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      return { x: e.clientX, y: e.clientY };
+    }
+    function findContainer(x, y) {
+      for (const key of Object.keys(containerRefs.current)) {
+        const el = containerRefs.current[key];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return key;
+      }
+      return null;
+    }
+    function onMove(e) {
+      const p = getPoint(e);
+      const key = findContainer(p.x, p.y);
+      dragInfoRef.current = dragInfoRef.current ? { ...dragInfoRef.current, x: p.x, y: p.y } : null;
+      hoverKeyRef.current = key;
+      setDragInfo((d) => (d ? { ...d, x: p.x, y: p.y } : d));
+      setHoverKey(key);
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      const info = dragInfoRef.current;
+      const key = hoverKeyRef.current;
+      if (info && key) moveUnit(info.source, key, info.unit);
+      dragInfoRef.current = null; hoverKeyRef.current = null;
+      setDragInfo(null); setHoverKey(null);
+    }
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+      window.removeEventListener("touchcancel", onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragInfo != null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   const loadArmy = useCallback(async () => {
     setLoadFailed(false);
     const a = await storageGet(`army-${system}:${armyId}`);
@@ -750,10 +809,6 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
   }
 
   const faction = army.faction;
-
-  useEffect(() => {
-    loadCollection(system).then((c) => setMyCollection(c[faction] || {}));
-  }, [system, faction]);
 
   const factionUnits = (() => {
     const raw = cfg.db[faction] || {};
@@ -849,51 +904,6 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
     }
     persist({ ...army, regiments: newRegiments, auxiliary: newAux });
   }
-  useEffect(() => {
-    if (!dragInfo) return;
-    function getPoint(e) {
-      if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      return { x: e.clientX, y: e.clientY };
-    }
-    function findContainer(x, y) {
-      for (const key of Object.keys(containerRefs.current)) {
-        const el = containerRefs.current[key];
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return key;
-      }
-      return null;
-    }
-    function onMove(e) {
-      const p = getPoint(e);
-      const key = findContainer(p.x, p.y);
-      dragInfoRef.current = dragInfoRef.current ? { ...dragInfoRef.current, x: p.x, y: p.y } : null;
-      hoverKeyRef.current = key;
-      setDragInfo((d) => (d ? { ...d, x: p.x, y: p.y } : d));
-      setHoverKey(key);
-      if (e.cancelable) e.preventDefault();
-    }
-    function onUp() {
-      const info = dragInfoRef.current;
-      const key = hoverKeyRef.current;
-      if (info && key) moveUnit(info.source, key, info.unit);
-      dragInfoRef.current = null; hoverKeyRef.current = null;
-      setDragInfo(null); setHoverKey(null);
-    }
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onUp);
-    window.addEventListener("touchcancel", onUp);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onUp);
-      window.removeEventListener("touchcancel", onUp);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [dragInfo != null]); // eslint-disable-line react-hooks/exhaustive-deps
-
   function setGeneral(instId) {
     // El regimiento cuyo héroe se marca como General pasa a ser el primero de la lista.
     const idx = army.regiments.findIndex((r) => r.hero && r.hero.instId === instId);
