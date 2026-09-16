@@ -28,7 +28,10 @@ const AOS_FACTIONS = Object.keys(AOS_DB).sort();
 const W40K_FACTIONS = Object.keys(W40K_DB).sort();
 
 /* -----------------------------------------------------------------
-   Colorillos
+   Paleta: mismo patrón de tarjetas y formas que ListForge, pero en
+   tonos oscuros suaves — sin el salto fuerte negro/blanco. Todo el
+   esquema se mueve en grises cálidos oscuros con poco contraste
+   entre capas.
 ----------------------------------------------------------------- */
 const BG = "#131316";
 const SECTION = "#1b1b1f";
@@ -55,9 +58,12 @@ const GENERAL_BG = "#26221a";
 function systemAccent(system) { return system === "w40k" ? W40K_ACCENT : GOLD; }
 function cardShadow() { return "0 2px 6px rgba(0,0,0,0.35)"; }
 
-
-
-
+/* -----------------------------------------------------------------
+   Normalización a una forma común para la UI: cada unidad expone
+   statPills (lista ordenada label/valor) y tablas de armas ya
+   formadas con sus propias columnas, para que el resto de la app
+   no necesite saber si es AoS o 40k.
+----------------------------------------------------------------- */
 function normalizeAos(faction, raw) {
   const meleeCols = [
     { k: "name", l: "Arma" }, { k: "Atk", l: "Atq" }, { k: "Hit", l: "Impacto" },
@@ -71,7 +77,7 @@ function normalizeAos(faction, raw) {
   ];
   return {
     system: "aos", name: raw.n, faction,
-    isHero: !!raw.hero, keywords: raw.kw || [],
+    isHero: !!raw.hero, keywords: raw.kw || [], baseSize: raw.sz || null,
     statPills: [
       { l: "Mov", v: raw.st.Move }, { l: "Vida", v: raw.st.Health },
       { l: "Salv.", v: raw.st.Save }, { l: "Control", v: raw.st.Control },
@@ -96,7 +102,7 @@ function normalizeW40k(faction, raw) {
   ];
   return {
     system: "w40k", name: raw.n, faction,
-    isHero: !!raw.hero, keywords: raw.kw || [],
+    isHero: !!raw.hero, keywords: raw.kw || [], baseSize: raw.sz || null,
     statPills: [
       { l: "Mov", v: raw.st.M }, { l: "Res.", v: raw.st.T }, { l: "Salv.", v: raw.st.SV },
       { l: "Heridas", v: raw.st.W }, { l: "Liderazgo", v: raw.st.LD }, { l: "OC", v: raw.st.OC },
@@ -125,6 +131,57 @@ function getUnit(system, faction, name) {
   return raw ? cfg.normalize(faction, raw) : null;
 }
 
+/* -----------------------------------------------------------------
+   Glosario de palabras clave universales (reglas core de cada
+   juego). Las palabras clave temáticas/de facción (p. ej. "WARRIOR
+   CHAMBER", "IMPERIUM") no tienen una regla propia, así que no
+   aparecen aquí — para esas, la ventana de detalle solo muestra
+   las unidades que la comparten.
+----------------------------------------------------------------- */
+const KEYWORD_DEFINITIONS = {
+  // Age of Sigmar 4ª edición (keywords en MAYÚSCULAS en los datos)
+  HERO: "Puede usar habilidades de mando con más eficacia y suele tener habilidades únicas. El General de tu ejército debe tener esta palabra clave.",
+  MONSTER: "Criatura grande y poderosa. Varias reglas de terreno, mando y objetivos hacen referencia específica a esta palabra clave.",
+  INFANTRY: "Tropa de a pie. Muchas habilidades de apoyo o mejora solo afectan a unidades con esta palabra clave.",
+  CAVALRY: "Unidad montada. Suele tener más Movimiento que la infantería equivalente.",
+  FLY: "Este modelo puede volar: ignora otros modelos y el terreno al moverse (salvo al desplegarse o terminar el movimiento).",
+  BEHEMOTH: "Máquina de guerra o criatura colosal. Como unidad de un único modelo, nunca tiene que hacer test de Battleshock.",
+  "WAR MACHINE": "Artefacto o vehículo de guerra operado por tropas. No se ve afectado por muchas habilidades pensadas para tropas normales.",
+  WIZARD: "Puede intentar lanzar hechizos en tu fase de héroes y desvincular hechizos enemigos en la fase de héroes rival.",
+  PRIEST: "Puede intentar orar plegarias en tu fase de héroes y anular plegarias enemigas en la fase de héroes rival.",
+  TOTEM: "Representa un punto de poder o influencia sobrenatural; algunas habilidades de facción solo afectan a unidades con esta palabra clave.",
+  FAMILIAR: "Modelo acompañante ligado a un héroe; normalmente no cuenta como una unidad independiente a efectos de la lista de ejército.",
+  // Warhammer 40.000 10ª/11ª edición (keywords en Title Case en los datos)
+  Character: "Equivalente a Héroe en 40k: personaje único con reglas y habilidades propias. Suele ser el que puede ser tu Warlord.",
+  Vehicle: "Máquina de guerra blindada. Muchas reglas de daño, reparación y objetivos hacen referencia específica a esta palabra clave.",
+  Battleline: "Unidad Troop obligatoria: la mayoría de listas exigen un número mínimo de unidades con esta palabra clave.",
+  "Epic Hero": "Personaje único con nombre propio y reglas especiales fijas — no se puede personalizar con mejoras genéricas.",
+  Psyker: "Puede intentar lanzar poderes psíquicos y negar los del rival, de forma similar a un Wizard en Age of Sigmar.",
+  Monster: "Criatura biológica de gran tamaño; comparte tratamiento con Vehicle en muchas reglas de daño por rango de heridas.",
+  Titanic: "Modelo colosal — ignora la mayoría de reglas de terreno y recibe tratamiento especial frente a ciertas armas.",
+  Infantry: "Tropa de a pie, la columna vertebral de la mayoría de ejércitos.",
+  Fly: "Puede volar sobre el terreno y otras miniaturas al moverse.",
+};
+// Algunas keywords de AoS llevan un número entre paréntesis, p. ej. "PRIEST (1)".
+// Para buscar definición y unidades relacionadas usamos la palabra base, sin el número.
+function keywordBase(kw) {
+  return kw.replace(/\s*\(.+\)\s*$/, "").trim();
+}
+function keywordDefinition(kw) {
+  return KEYWORD_DEFINITIONS[keywordBase(kw)] || null;
+}
+
+/* Devuelve el nombre de todas las unidades de una facción que comparten una keyword (por palabra base) */
+function unitsWithKeyword(system, faction, keyword) {
+  const cfg = SYSTEMS[system];
+  const raw = cfg.db[faction] || {};
+  const base = keywordBase(keyword);
+  return Object.values(raw)
+    .filter((u) => (u.kw || []).some((k) => keywordBase(k) === base))
+    .map((u) => u.n)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 const POINTS_LIMIT_AOS = 2000;
 const POINTS_LIMIT_W40K = 2000;
 
@@ -133,6 +190,13 @@ const POINTS_LIMIT_W40K = 2000;
    mezclar listas de AoS y 40k.
    Tres niveles, de mejor a peor, para que la app SIEMPRE funcione
    sea cual sea el sitio donde se esté viendo este archivo:
+   1. window.storage — API de artefactos interactivos de Claude.
+   2. localStorage — navegador normal, PWA/APK empaquetada.
+   3. Memoria en la propia pestaña — red de seguridad para vistas
+      previas en sandbox donde ni siquiera localStorage esté
+      permitido (por ejemplo, el visor de archivos del chat). En
+      este último caso los datos NO sobreviven a cerrar o recargar
+      la pestaña, pero la app deja de romperse.
 ----------------------------------------------------------------- */
 const memoryStore = new Map();
 
@@ -326,6 +390,17 @@ function HeroStar({ color, size = 12 }) {
   );
 }
 
+function CrownIcon({ color, size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color || GOLD} style={{ flexShrink: 0 }}>
+      <path d="M3 8l4 3 5-6 5 6 4-3-2 11H5L3 8z" />
+      <circle cx="3" cy="6.5" r="1.6" />
+      <circle cx="12" cy="4" r="1.6" />
+      <circle cx="21" cy="6.5" r="1.6" />
+    </svg>
+  );
+}
+
 function StatPill({ label, value }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 44 }}>
@@ -369,40 +444,82 @@ function WeaponTable({ title, columns, rows }) {
 const th = { textAlign: "left", padding: "6px 9px", fontWeight: 600, fontSize: 10.5, letterSpacing: 0.3 };
 const td = { padding: "6px 9px", verticalAlign: "top" };
 
+function KeywordPopover({ system, faction, keyword, onPick, onClose, currentName }) {
+  const def = keywordDefinition(keyword);
+  const related = unitsWithKeyword(system, faction, keyword).filter((n) => n !== currentName);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} className="ab-scroll" style={{ background: SECTION, borderRadius: 14, maxWidth: 420, width: "100%", maxHeight: "70vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}>
+        <div style={{ padding: "16px 18px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>{keyword}</div>
+          <button onClick={onClose} style={{ background: SECTION2, border: "none", color: TEXT, width: 26, height: 26, borderRadius: 7, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>✕</button>
+        </div>
+        <div style={{ padding: "0 18px 18px" }}>
+          {def ? (
+            <div style={{ fontSize: 12.5, color: PARCH, lineHeight: 1.5, marginBottom: 14 }}>{def}</div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 14, fontStyle: "italic" }}>Palabra clave propia de esta facción — sin definición de regla general.</div>
+          )}
+          <div style={{ fontSize: 11, color: MUTED, fontWeight: 700, marginBottom: 8, letterSpacing: 0.4, textTransform: "uppercase" }}>
+            Otras unidades con esta keyword ({related.length})
+          </div>
+          {related.length === 0 && <div style={{ fontSize: 12, color: MUTED }}>Ninguna otra unidad de {faction} la comparte.</div>}
+          {related.map((name) => (
+            <button key={name} onClick={() => onPick(name)} style={{
+              display: "block", width: "100%", textAlign: "left", background: CARD, color: CARD_TEXT,
+              border: "none", borderRadius: 8, padding: "9px 11px", marginBottom: 6, fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}>{name}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GenericDetail({ unit, onClose }) {
-  if (!unit) return null;
-  const accent = systemAccent(unit.system);
+  const [current, setCurrent] = useState(unit);
+  const [keywordPopup, setKeywordPopup] = useState(null);
+  useEffect(() => { setCurrent(unit); setKeywordPopup(null); }, [unit]);
+  if (!current) return null;
+  const accent = systemAccent(current.system);
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} className="ab-scroll" style={{ background: SECTION, borderRadius: 16, maxWidth: 620, width: "100%", maxHeight: "86vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }}>
         <div style={{ padding: "18px 20px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontSize: 10.5, color: accent, letterSpacing: 0.6, marginBottom: 3, fontWeight: 600 }}>{unit.faction}{unit.isHero ? " · Héroe/Personaje" : ""}</div>
+            <div style={{ fontSize: 10.5, color: accent, letterSpacing: 0.6, marginBottom: 3, fontWeight: 600 }}>{current.faction}{current.isHero ? " · Héroe/Personaje" : ""}</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: TEXT, display: "flex", alignItems: "center", gap: 7 }}>
-              {unit.isHero && <HeroStar size={14} color={accent} />}
-              {unit.name}
+              {current.isHero && <HeroStar size={14} color={accent} />}
+              {current.name}
             </div>
           </div>
           <button onClick={onClose} style={{ background: SECTION2, border: "none", color: TEXT, width: 30, height: 30, borderRadius: 8, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>✕</button>
         </div>
         <div style={{ padding: "0 20px 20px" }}>
           <div style={{ background: CARD, borderRadius: 12, boxShadow: cardShadow(), display: "flex", gap: 14, padding: "12px 14px", justifyContent: "space-around", flexWrap: "wrap" }}>
-            {unit.statPills.map((p) => <StatPill key={p.l} label={p.l} value={p.v} />)}
-            <StatPill label="Puntos" value={unit.points != null ? unit.points : "?"} />
+            {current.baseSize != null && <StatPill label="Modelos" value={current.baseSize} />}
+            {current.statPills.map((p) => <StatPill key={p.l} label={p.l} value={p.v} />)}
+            <StatPill label="Puntos" value={current.points != null ? current.points : "?"} />
           </div>
-          {unit.keywords && unit.keywords.length > 0 && (
+          {current.keywords && current.keywords.length > 0 && (
             <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {unit.keywords.map((k) => <Pill key={k}>{k}</Pill>)}
+              {current.keywords.map((k) => (
+                <button key={k} onClick={() => setKeywordPopup(k)} style={{
+                  background: PILL, color: PILL_TEXT, fontSize: 11, fontWeight: 600, padding: "3px 9px",
+                  borderRadius: 7, whiteSpace: "nowrap", border: "none", cursor: "pointer",
+                }}>{k}</button>
+              ))}
             </div>
           )}
+          <div style={{ fontSize: 10.5, color: MUTED, marginTop: 10 }}>Fuente: BSData (comunidad) — verifica puntos en la app oficial antes de un torneo.</div>
 
-          <WeaponTable title="Armas cuerpo a cuerpo" columns={unit.meleeCols} rows={unit.meleeRows} />
-          <WeaponTable title="Armas a distancia" columns={unit.rangedCols} rows={unit.rangedRows} />
+          <WeaponTable title="Armas cuerpo a cuerpo" columns={current.meleeCols} rows={current.meleeRows} />
+          <WeaponTable title="Armas a distancia" columns={current.rangedCols} rows={current.rangedRows} />
 
-          {unit.abilities && unit.abilities.length > 0 && (
+          {current.abilities && current.abilities.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 12, color: MUTED, fontWeight: 600, marginBottom: 6, letterSpacing: 0.3 }}>Habilidades</div>
-              {unit.abilities.map((a, i) => (
+              {current.abilities.map((a, i) => (
                 <div key={i} style={{ background: CARD, borderRadius: 12, boxShadow: cardShadow(), padding: "10px 13px", marginBottom: 8 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                     <span style={{ fontWeight: 700, color: CARD_TEXT, fontSize: 13 }}>{a.name}</span>
@@ -416,6 +533,17 @@ function GenericDetail({ unit, onClose }) {
           )}
         </div>
       </div>
+      {keywordPopup && (
+        <KeywordPopover
+          system={current.system} faction={current.faction} keyword={keywordPopup} currentName={current.name}
+          onClose={() => setKeywordPopup(null)}
+          onPick={(name) => {
+            const picked = getUnit(current.system, current.faction, name);
+            if (picked) setCurrent(picked);
+            setKeywordPopup(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -554,7 +682,13 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
   const [openHeroCard, setOpenHeroCard] = useState(true);
   const [openTroopCard, setOpenTroopCard] = useState(true);
   const [pendingTarget, setPendingTarget] = useState("aux");
-  const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [menuOpenFor, setMenuOpenFor] = useState(null); // id de regimiento con el menú ⋮ abierto
+  const [confirmDeleteFor, setConfirmDeleteFor] = useState(null); // id de regimiento pendiente de confirmar borrado
+  const containerRefs = useRef({}); // "reg-<id>" | "aux" -> nodo DOM, para detectar sobre qué contenedor se suelta
+  const [dragInfo, setDragInfo] = useState(null); // { source, unit, x, y }
+  const dragInfoRef = useRef(null);
+  const [hoverKey, setHoverKey] = useState(null);
+  const hoverKeyRef = useRef(null);
   const [addModalRegId, setAddModalRegId] = useState(null);
   const [toast, setToast] = useState(null);
   const [showExport, setShowExport] = useState(false);
@@ -678,6 +812,80 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
     reordered.splice(toIdx, 0, moved);
     persist({ ...army, regiments: reordered });
   }
+
+  /* Arrastrar una tropa (no héroe) de un regimiento/auxiliares a otro, sin borrarla y recrearla. */
+  function startDrag(e, source, unit) {
+    const p = e.touches && e.touches.length ? e.touches[0] : e;
+    const info = { source, unit, x: p.clientX, y: p.clientY };
+    dragInfoRef.current = info;
+    setDragInfo(info);
+  }
+  function moveUnit(source, targetKey, unit) {
+    const sourceKey = source.type === "aux" ? "aux" : "reg-" + source.regId;
+    if (sourceKey === targetKey) return; // soltado en el mismo sitio, no hacemos nada
+    const newRegiments = army.regiments.map((r) => ({ ...r, units: [...r.units] }));
+    let newAux = [...army.auxiliary];
+    if (source.type === "aux") {
+      newAux = newAux.filter((u) => u.instId !== source.instId);
+    } else {
+      const reg = newRegiments.find((r) => r.id === source.regId);
+      if (reg) reg.units = reg.units.filter((u) => u.instId !== source.instId);
+    }
+    if (targetKey === "aux") {
+      newAux.push(unit);
+    } else {
+      const targetId = Number(targetKey.replace("reg-", ""));
+      const reg = newRegiments.find((r) => r.id === targetId);
+      if (!reg) return; // por seguridad, si no existe el contenedor destino no perdemos la unidad
+      reg.units.push(unit);
+    }
+    persist({ ...army, regiments: newRegiments, auxiliary: newAux });
+  }
+  useEffect(() => {
+    if (!dragInfo) return;
+    function getPoint(e) {
+      if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      return { x: e.clientX, y: e.clientY };
+    }
+    function findContainer(x, y) {
+      for (const key of Object.keys(containerRefs.current)) {
+        const el = containerRefs.current[key];
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return key;
+      }
+      return null;
+    }
+    function onMove(e) {
+      const p = getPoint(e);
+      const key = findContainer(p.x, p.y);
+      dragInfoRef.current = dragInfoRef.current ? { ...dragInfoRef.current, x: p.x, y: p.y } : null;
+      hoverKeyRef.current = key;
+      setDragInfo((d) => (d ? { ...d, x: p.x, y: p.y } : d));
+      setHoverKey(key);
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      const info = dragInfoRef.current;
+      const key = hoverKeyRef.current;
+      if (info && key) moveUnit(info.source, key, info.unit);
+      dragInfoRef.current = null; hoverKeyRef.current = null;
+      setDragInfo(null); setHoverKey(null);
+    }
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+      window.removeEventListener("touchcancel", onUp);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragInfo != null]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function setGeneral(instId) {
     // El regimiento cuyo héroe se marca como General pasa a ser el primero de la lista.
     const idx = army.regiments.findIndex((r) => r.hero && r.hero.instId === instId);
@@ -840,31 +1048,46 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
                     style={{ background: "none", border: "none", color: idx === 0 ? "#3a3a40" : MUTED, cursor: idx === 0 ? "default" : "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>▲</button>
                   <button onClick={() => reorderRegiments(idx, idx + 1)} disabled={idx === army.regiments.length - 1} title="Bajar"
                     style={{ background: "none", border: "none", color: idx === army.regiments.length - 1 ? "#3a3a40" : MUTED, cursor: idx === army.regiments.length - 1 ? "default" : "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>▼</button>
-                  {!isGeneral && r.hero && (
-                    <button onClick={() => setGeneral(r.hero.instId)} style={{ background: "none", border: "none", color: accent, fontSize: 11, cursor: "pointer", padding: 0, fontWeight: 600 }}>Marcar {generalLabel}</button>
-                  )}
-                  <button onClick={() => setMenuOpenFor(menuOpenFor === r.id ? null : r.id)} style={{ background: "none", border: "none", color: MUTED, fontSize: 18, cursor: "pointer", padding: 0, lineHeight: 1 }}>⋮</button>
+                  <div style={{ position: "relative" }}>
+                    <button onClick={() => { setMenuOpenFor(menuOpenFor === r.id ? null : r.id); setConfirmDeleteFor(null); }} style={{ background: "none", border: "none", color: MUTED, fontSize: 18, cursor: "pointer", padding: 0, lineHeight: 1 }}>⋮</button>
+                    {menuOpenFor === r.id && (
+                      <div style={{ position: "absolute", right: 0, top: "120%", background: SECTION2, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", minWidth: 170, zIndex: 20, overflow: "hidden" }}>
+                        {!isGeneral && r.hero && (
+                          <button onClick={() => { setGeneral(r.hero.instId); setMenuOpenFor(null); }} style={{
+                            display: "block", width: "100%", textAlign: "left", background: "none", border: "none",
+                            color: TEXT, fontSize: 12.5, padding: "10px 14px", cursor: "pointer",
+                          }}>Marcar {generalLabel}</button>
+                        )}
+                        <button onClick={() => setConfirmDeleteFor(r.id)} style={{
+                          display: "block", width: "100%", textAlign: "left", background: "none", border: "none",
+                          color: DANGER, fontSize: 12.5, padding: "10px 14px", cursor: "pointer",
+                        }}>Eliminar regimiento</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               }
             />
-            {menuOpenFor === r.id && (
+            {confirmDeleteFor === r.id && (
               <div style={{ background: SECTION2, borderRadius: 10, padding: "10px 12px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: MUTED }}>¿Eliminar este regimiento y todo su contenido?</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setMenuOpenFor(null)} style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 6, fontSize: 11.5, padding: "5px 10px", cursor: "pointer" }}>Cancelar</button>
-                  <button onClick={() => { removeRegiment(r.id); setMenuOpenFor(null); }} style={{ background: DANGER, border: "none", color: "#fff", borderRadius: 6, fontSize: 11.5, padding: "5px 10px", cursor: "pointer", fontWeight: 600 }}>Eliminar</button>
+                  <button onClick={() => { setConfirmDeleteFor(null); setMenuOpenFor(null); }} style={{ background: "none", border: `1px solid ${BORDER}`, color: MUTED, borderRadius: 6, fontSize: 11.5, padding: "5px 10px", cursor: "pointer" }}>Cancelar</button>
+                  <button onClick={() => { removeRegiment(r.id); setConfirmDeleteFor(null); setMenuOpenFor(null); }} style={{ background: DANGER, border: "none", color: "#fff", borderRadius: 6, fontSize: 11.5, padding: "5px 10px", cursor: "pointer", fontWeight: 600 }}>Eliminar</button>
                 </div>
               </div>
             )}
             {isOpen && <>
             {r.hero && (
               <div style={{
-                background: `linear-gradient(90deg, ${accent}22, ${CARD} 40%)`, borderLeft: `3px solid ${accent}`,
+                background: isGeneral ? `linear-gradient(90deg, ${accent}3a, ${CARD} 55%)` : `linear-gradient(90deg, ${accent}22, ${CARD} 40%)`,
+                borderLeft: isGeneral ? `4px solid ${accent}` : `3px solid ${accent}`,
                 borderRadius: 12, padding: "13px 14px", boxShadow: cardShadow(), marginBottom: 6,
               }}>
                 <button onClick={() => onOpenDetail(r.hero)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <span style={{ color: CARD_TEXT, fontSize: 15.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 7 }}>
-                    <HeroStar color={accent} size={14} />{r.hero.name}
+                    {isGeneral ? <CrownIcon color={accent} size={16} /> : <HeroStar color={accent} size={14} />}
+                    {r.hero.name}
                   </span>
                   <Pill>{r.hero.points != null ? `${r.hero.points} pts` : "pts ?"}</Pill>
                 </button>
@@ -873,16 +1096,26 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
                 </div>
               </div>
             )}
-            {r.units.map((u) => (
-              <SwipeableRow key={u.instId} onDelete={() => removeUnitFromRegiment(r.id, u.instId)} onDuplicate={() => duplicateUnitInRegiment(r.id, u.instId)}>
-                <div style={{ background: CARD, borderRadius: 12, padding: "11px 14px", boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <button onClick={() => onOpenDetail(u)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 0 }}>
-                    <span style={{ color: CARD_TEXT, fontSize: 14, fontWeight: 600 }}>{u.name}</span>
-                  </button>
-                  <Pill>{u.points != null ? `${u.points} pts` : "pts ?"}</Pill>
-                </div>
-              </SwipeableRow>
-            ))}
+            <div
+              ref={(el) => { containerRefs.current["reg-" + r.id] = el; }}
+              style={{
+                borderRadius: 12, transition: "outline-color 0.1s",
+                outline: hoverKey === "reg-" + r.id && dragInfo ? `2px dashed ${accent}` : "2px dashed transparent",
+                outlineOffset: 2,
+              }}
+            >
+              {r.units.map((u) => (
+                <SwipeableRow key={u.instId} onDelete={() => removeUnitFromRegiment(r.id, u.instId)} onDuplicate={() => duplicateUnitInRegiment(r.id, u.instId)}>
+                  <div style={{ background: CARD, borderRadius: 12, padding: "11px 14px", boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, opacity: dragInfo && dragInfo.source.instId === u.instId ? 0.3 : 1 }}>
+                    <DragHandle onStart={(e) => startDrag(e, { type: "reg", regId: r.id, instId: u.instId }, u)} />
+                    <button onClick={() => onOpenDetail(u)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 0 }}>
+                      <span style={{ color: CARD_TEXT, fontSize: 14, fontWeight: 600 }}>{u.name}</span>
+                    </button>
+                    <Pill>{u.points != null ? `${u.points} pts` : "pts ?"}</Pill>
+                  </div>
+                </SwipeableRow>
+              ))}
+            </div>
             <button onClick={() => setAddModalRegId(r.id)} style={{
               width: "100%", padding: "10px 0", borderRadius: 10, border: `1px dashed ${BORDER}`,
               background: "none", color: MUTED, fontSize: 13, cursor: "pointer", fontWeight: 600,
@@ -908,18 +1141,38 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
         <SectionHeader label="Unidades auxiliares" kind="aux" color={AUX_COLOR} expanded={openAux} onToggle={() => setOpenAux((v) => !v)} />
         {openAux && <>
         {army.auxiliary.length === 0 && <div style={{ color: MUTED, fontSize: 12, marginBottom: 8, padding: "0 2px" }}>Ninguna todavía.</div>}
-        {army.auxiliary.map((u) => (
-          <SwipeableRow key={u.instId} onDelete={() => removeAuxiliary(u.instId)} onDuplicate={() => duplicateAuxiliary(u.instId)}>
-          <div style={{ background: CARD, borderRadius: 12, padding: "11px 14px", boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <button onClick={() => onOpenDetail(u)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 0 }}>
-              <span style={{ color: CARD_TEXT, fontSize: 14, fontWeight: 600 }}>{u.name}</span>
-            </button>
-            <Pill>{u.points != null ? `${u.points} pts` : "pts ?"}</Pill>
-          </div>
-          </SwipeableRow>
-        ))}
+        <div
+          ref={(el) => { containerRefs.current["aux"] = el; }}
+          style={{
+            borderRadius: 12, minHeight: army.auxiliary.length === 0 ? 40 : 0,
+            outline: hoverKey === "aux" && dragInfo ? `2px dashed ${AUX_COLOR}` : "2px dashed transparent",
+            outlineOffset: 2,
+          }}
+        >
+          {army.auxiliary.map((u) => (
+            <SwipeableRow key={u.instId} onDelete={() => removeAuxiliary(u.instId)} onDuplicate={() => duplicateAuxiliary(u.instId)}>
+            <div style={{ background: CARD, borderRadius: 12, padding: "11px 14px", boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, opacity: dragInfo && dragInfo.source.instId === u.instId ? 0.3 : 1 }}>
+              <DragHandle onStart={(e) => startDrag(e, { type: "aux", instId: u.instId }, u)} />
+              <button onClick={() => onOpenDetail(u)} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 0 }}>
+                <span style={{ color: CARD_TEXT, fontSize: 14, fontWeight: 600 }}>{u.name}</span>
+              </button>
+              <Pill>{u.points != null ? `${u.points} pts` : "pts ?"}</Pill>
+            </div>
+            </SwipeableRow>
+          ))}
+        </div>
         </>}
       </div>
+
+      {dragInfo && (
+        <div style={{
+          position: "fixed", left: dragInfo.x + 12, top: dragInfo.y + 12, zIndex: 90,
+          background: CARD, color: CARD_TEXT, padding: "7px 12px", borderRadius: 8,
+          fontSize: 12.5, fontWeight: 700, boxShadow: "0 6px 18px rgba(0,0,0,0.5)", pointerEvents: "none",
+        }}>
+          {dragInfo.unit.name}
+        </div>
+      )}
 
       {toast && (
         <div style={{
@@ -955,6 +1208,20 @@ function CardCollapseHeader({ label, expanded, onToggle }) {
 
 /* Fila con gestos de deslizar: izquierda = eliminar, derecha = duplicar.
    Sin necesidad de ningún botón. */
+/* Icono de agarre para arrastrar una tropa a otro regimiento/auxiliares.
+   Detiene la propagación para no disparar a la vez el gesto de deslizar
+   horizontal de SwipeableRow, que escucha en un elemento ancestro. */
+function DragHandle({ onStart }) {
+  return (
+    <span
+      onTouchStart={(e) => { e.stopPropagation(); onStart(e); }}
+      onMouseDown={(e) => { e.stopPropagation(); onStart(e); }}
+      title="Arrastra a otro regimiento"
+      style={{ cursor: "grab", color: MUTED, fontSize: 15, lineHeight: 1, userSelect: "none", padding: "2px 4px", flexShrink: 0, touchAction: "none" }}
+    >⠿</span>
+  );
+}
+
 function SwipeableRow({ children, onDelete, onDuplicate }) {
   const [dragX, setDragX] = useState(0);
   const elRef = useRef(null);
@@ -1225,18 +1492,36 @@ function ExtraPickerLight({ label, options, value, onChange }) {
 /* =================================================================
    MODO: BASE DE DATOS COMPLETA (solo consulta)
 ================================================================= */
+const SORT_OPTIONS = [
+  { key: "name-asc", label: "Nombre A-Z" },
+  { key: "name-desc", label: "Nombre Z-A" },
+  { key: "points-asc", label: "Puntos ↑" },
+  { key: "points-desc", label: "Puntos ↓" },
+];
+function sortUnits(list, sortKey) {
+  const sorted = [...list];
+  switch (sortKey) {
+    case "name-desc": return sorted.sort((a, b) => b.name.localeCompare(a.name));
+    case "points-asc": return sorted.sort((a, b) => (a.points ?? Infinity) - (b.points ?? Infinity));
+    case "points-desc": return sorted.sort((a, b) => (b.points ?? -Infinity) - (a.points ?? -Infinity));
+    case "name-asc":
+    default: return sorted.sort((a, b) => a.name.localeCompare(b.name));
+  }
+}
+
 function FullDatabase({ system, onOpenDetail }) {
   const cfg = SYSTEMS[system];
   const accent = systemAccent(system);
   const [faction, setFaction] = useState(cfg.defaultFaction);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState("name-asc");
 
   const units = useMemo(() => {
     const raw = cfg.db[faction] || {};
-    return Object.values(raw).map((u) => cfg.normalize(faction, u))
-      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [faction, query, system]);
+    const list = Object.values(raw).map((u) => cfg.normalize(faction, u))
+      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+    return sortUnits(list, sortKey);
+  }, [faction, query, system, sortKey]);
 
   const totalUnits = useMemo(() => Object.values(cfg.db).reduce((n, f) => n + Object.keys(f).length, 0), [system]);
 
@@ -1246,6 +1531,7 @@ function FullDatabase({ system, onOpenDetail }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <Select value={faction} onChange={(e) => setFaction(e.target.value)} style={{ minWidth: 220 }} options={cfg.factions.map((f) => <option key={f} value={f}>{f}</option>)} />
         <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar unidad..." style={{ flex: 1, minWidth: 160 }} />
+        <Select value={sortKey} onChange={(e) => setSortKey(e.target.value)} style={{ minWidth: 150 }} options={SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {units.map((u) => (
@@ -1257,7 +1543,7 @@ function FullDatabase({ system, onOpenDetail }) {
                 {u.isHero && <HeroStar color={accent} />}
                 {u.name}
               </div>
-              <div style={{ color: CARD_SUB, fontSize: 11.5, marginTop: 2 }}>{u.statPills[0].l} {u.statPills[0].v || "—"}{u.isHero ? " · Héroe" : ""}</div>
+              <div style={{ color: CARD_SUB, fontSize: 11.5, marginTop: 2 }}>{u.statPills[0].l} {u.statPills[0].v || "—"}{u.baseSize != null ? ` · ${u.baseSize} modelo${u.baseSize > 1 ? "s" : ""}` : ""}{u.isHero ? " · Héroe" : ""}</div>
             </div>
             <Pill>{u.points != null ? `${u.points} pts` : "pts ?"}</Pill>
           </button>
@@ -1269,7 +1555,7 @@ function FullDatabase({ system, onOpenDetail }) {
 }
 
 /* =================================================================
-   NAVEGACIÓN (Mis ejércitos / Base de datos)
+   NAVEGACIÓN DE UN JUEGO (Mis ejércitos / Base de datos)
 ================================================================= */
 function BottomTab({ active, label, icon, onClick }) {
   return (
@@ -1281,6 +1567,94 @@ function BottomTab({ active, label, icon, onClick }) {
       {icon}
       <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500 }}>{label}</span>
     </button>
+  );
+}
+
+/* =================================================================
+   MI COLECCIÓN — cuántas copias tienes de cada unidad, por facción.
+   Se guarda de forma persistente, igual que los ejércitos.
+================================================================= */
+async function loadCollection(system) {
+  const c = await storageGet("collection-" + system);
+  return c || {};
+}
+function CollectionPage({ system, onOpenDetail }) {
+  const cfg = SYSTEMS[system];
+  const accent = systemAccent(system);
+  const [faction, setFaction] = useState(cfg.defaultFaction);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState("name-asc");
+  const [collection, setCollection] = useState(null); // { faction: { unitName: qty } }
+
+  useEffect(() => { loadCollection(system).then(setCollection); }, [system]);
+
+  // Establece un valor absoluto (lo usa el campo numérico manual)
+  function setQty(unitName, qty) {
+    setCollection((prev) => {
+      const next = { ...prev, [faction]: { ...(prev[faction] || {}), [unitName]: qty } };
+      storageSet("collection-" + system, next);
+      return next;
+    });
+  }
+  // Incrementa/decrementa siempre a partir del estado más reciente (no de un valor
+  // capturado en el cierre del render), para que los toques rápidos en +/- no se pierdan.
+  function adjustQty(unitName, delta) {
+    setCollection((prev) => {
+      const facMap = { ...(prev[faction] || {}) };
+      facMap[unitName] = Math.max(0, (facMap[unitName] || 0) + delta);
+      const next = { ...prev, [faction]: facMap };
+      storageSet("collection-" + system, next);
+      return next;
+    });
+  }
+
+  const units = useMemo(() => {
+    const raw = cfg.db[faction] || {};
+    const list = Object.values(raw).map((u) => cfg.normalize(faction, u))
+      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+    return sortUnits(list, sortKey);
+  }, [faction, query, system, sortKey]);
+
+  const facCollection = (collection && collection[faction]) || {};
+  const ownedCount = Object.values(facCollection).filter((q) => q > 0).length;
+
+  if (collection === null) return <div style={{ color: MUTED, padding: 30, textAlign: "center" }}>Cargando colección…</div>;
+
+  return (
+    <div>
+      <SectionHeader label="Mi colección" right={<span style={{ fontSize: 11, color: MUTED }}>{ownedCount} unidades distintas en {faction}</span>} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <Select value={faction} onChange={(e) => setFaction(e.target.value)} style={{ minWidth: 220 }} options={cfg.factions.map((f) => <option key={f} value={f}>{f}</option>)} />
+        <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar unidad..." style={{ flex: 1, minWidth: 160 }} />
+        <Select value={sortKey} onChange={(e) => setSortKey(e.target.value)} style={{ minWidth: 150 }} options={SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {units.map((u) => {
+          const qty = facCollection[u.name] || 0;
+          return (
+            <div key={u.name} style={{ background: CARD, borderRadius: 12, padding: "10px 14px", boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <button onClick={() => onOpenDetail(u)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", flex: 1, minWidth: 0 }}>
+                <div style={{ color: qty > 0 ? CARD_TEXT : CARD_SUB, fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                  {u.isHero && <HeroStar color={accent} />}
+                  {u.name}
+                </div>
+                <div style={{ color: CARD_SUB, fontSize: 11.5, marginTop: 2 }}>{u.points != null ? `${u.points} pts` : "pts ?"}{u.baseSize != null ? ` · ${u.baseSize} modelo${u.baseSize > 1 ? "s" : ""}` : ""}</div>
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => setQty(u.name, Math.max(0, qty - 1))} style={{ width: 26, height: 26, borderRadius: 7, border: "none", background: SECTION2, color: CARD_TEXT, fontSize: 15, cursor: "pointer" }}>−</button>
+                <input
+                  type="number" min="0" value={qty}
+                  onChange={(e) => setQty(u.name, Math.max(0, parseInt(e.target.value || "0", 10)))}
+                  style={{ width: 40, textAlign: "center", background: SECTION2, color: CARD_TEXT, border: "none", borderRadius: 7, padding: "5px 2px", fontSize: 13, fontWeight: 700 }}
+                />
+                <button onClick={() => setQty(u.name, qty + 1)} style={{ width: 26, height: 26, borderRadius: 7, border: "none", background: SECTION2, color: CARD_TEXT, fontSize: 15, cursor: "pointer" }}>+</button>
+              </div>
+            </div>
+          );
+        })}
+        {units.length === 0 && <div style={{ color: MUTED, fontSize: 13, padding: 20, textAlign: "center" }}>Sin resultados.</div>}
+      </div>
+    </div>
   );
 }
 
@@ -1298,7 +1672,8 @@ function GameApp({ system, onExit }) {
     <div style={{ paddingBottom: 66 }}>
       <div style={{ padding: "16px 18px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <button onClick={onExit} style={{ background: "none", border: "none", color: MUTED, fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 5 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          Juego
         </button>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>{cfg.label}</div>
@@ -1310,6 +1685,7 @@ function GameApp({ system, onExit }) {
         {view === "home" && <HomePage system={system} onOpenArmy={(id, prefetched) => { setActiveArmyId(id); setPrefetchedArmy(prefetched || null); setView("editor"); }} />}
         {view === "editor" && activeArmyId && <ArmyEditor system={system} armyId={activeArmyId} initialArmy={prefetchedArmy} onBack={() => { setView("home"); setActiveArmyId(null); setPrefetchedArmy(null); }} onOpenDetail={setDetailUnit} />}
         {view === "database" && <FullDatabase system={system} onOpenDetail={setDetailUnit} />}
+        {view === "collection" && <CollectionPage system={system} onOpenDetail={setDetailUnit} />}
       </div>
 
       {detailUnit && <GenericDetail unit={detailUnit} onClose={() => setDetailUnit(null)} />}
@@ -1321,24 +1697,28 @@ function GameApp({ system, onExit }) {
         display: "flex", width: "100%",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}>
-        <BottomTab active={view !== "database"} label="Ejércitos" onClick={() => { setView("home"); setActiveArmyId(null); }}
-          icon={<svg {...iconStyle(view !== "database")}><path d="M12 2l2.2 4.8L19 8l-3.6 3.4.9 5.1L12 14l-4.3 2.5.9-5.1L5 8l4.8-1.2L12 2z" /></svg>} />
+        <BottomTab active={view === "home" || view === "editor"} label="Ejércitos" onClick={() => { setView("home"); setActiveArmyId(null); }}
+          icon={<svg {...iconStyle(view === "home" || view === "editor")}><path d="M12 2l2.2 4.8L19 8l-3.6 3.4.9 5.1L12 14l-4.3 2.5.9-5.1L5 8l4.8-1.2L12 2z" /></svg>} />
         <BottomTab active={view === "database"} label="Base de datos" onClick={() => setView("database")}
           icon={<svg {...iconStyle(view === "database")}><rect x="4" y="4" width="16" height="4" rx="1" /><rect x="4" y="10" width="16" height="4" rx="1" /><rect x="4" y="16" width="16" height="4" rx="1" /></svg>} />
+        <BottomTab active={view === "collection"} label="Colección" onClick={() => setView("collection")}
+          icon={<svg {...iconStyle(view === "collection")}><rect x="3" y="6" width="18" height="14" rx="2" /><path d="M8 6V4h8v2" /></svg>} />
       </div>
     </div>
   );
 }
 
 /* =================================================================
-   MENÚ PRINCIPAL
+   MENÚ PRINCIPAL: elegir juego
 ================================================================= */
 function MainMenu({ onSelect }) {
   return (
     <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box" }}>
-     <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 24 }}>
-     ARMY PLANNER
-   </div>
+      <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase" }}>
+        Army Forge
+      </div>
+      <div style={{ fontSize: 13, color: MUTED, textAlign: "center", marginTop: 6, marginBottom: 40 }}>Elige tu juego</div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
