@@ -692,6 +692,8 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
   const [addModalRegId, setAddModalRegId] = useState(null);
   const [toast, setToast] = useState(null);
   const [showExport, setShowExport] = useState(false);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [myCollection, setMyCollection] = useState({}); // { unitName: qty } de la facción de este ejército
 
   useEffect(() => {
     if (!toast) return;
@@ -748,10 +750,16 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
   }
 
   const faction = army.faction;
+
+  useEffect(() => {
+    loadCollection(system).then((c) => setMyCollection(c[faction] || {}));
+  }, [system, faction]);
+
   const factionUnits = (() => {
     const raw = cfg.db[faction] || {};
     let list = Object.values(raw).map((u) => cfg.normalize(faction, u));
     if (query) list = list.filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+    if (onlyMine) list = list.filter((u) => (myCollection[u.name] || 0) > 0);
     return list.sort((a, b) => (b.isHero - a.isHero) || a.name.localeCompare(b.name));
   })();
   const heroOptions = factionUnits.filter((u) => u.isHero);
@@ -947,6 +955,10 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
         {openAdd && (
         <>
           <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Buscar en ${faction}...`} style={{ marginBottom: 10 }} />
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: MUTED, marginBottom: 14, cursor: "pointer" }}>
+            <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
+            Solo mis tropas ({Object.values(myCollection).filter((q) => q > 0).length} en {faction})
+          </label>
 
           {/* Tarjeta de Héroes */}
           <div style={{ background: CARD, borderRadius: 12, padding: 14, boxShadow: cardShadow(), marginBottom: 10 }}>
@@ -1131,6 +1143,7 @@ function ArmyEditor({ system, armyId, initialArmy, onBack, onOpenDetail }) {
         return (
           <AddUnitToRegimentModal
             system={system} faction={faction} regLabel={`Regimiento ${idx2 + 1}`}
+            collection={myCollection}
             onClose={() => setAddModalRegId(null)}
             onPick={(name) => addUnitToRegiment(addModalRegId, name)}
           />
@@ -1406,16 +1419,18 @@ function ExportModal({ system, faction, army, limit, generalLabel, onClose }) {
   );
 }
 
-function AddUnitToRegimentModal({ system, faction, regLabel, onClose, onPick }) {
+function AddUnitToRegimentModal({ system, faction, regLabel, collection, onClose, onPick }) {
   const cfg = SYSTEMS[system];
   const accent = systemAccent(system);
   const [query, setQuery] = useState("");
+  const [onlyMine, setOnlyMine] = useState(false);
   const units = useMemo(() => {
     const raw = cfg.db[faction] || {};
-    return Object.values(raw).map((u) => cfg.normalize(faction, u))
-      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()))
-      .sort((a, b) => (b.isHero - a.isHero) || a.name.localeCompare(b.name));
-  }, [faction, query, system]);
+    let list = Object.values(raw).map((u) => cfg.normalize(faction, u))
+      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+    if (onlyMine && collection) list = list.filter((u) => (collection[u.name] || 0) > 0);
+    return list.sort((a, b) => (b.isHero - a.isHero) || a.name.localeCompare(b.name));
+  }, [faction, query, system, onlyMine, collection]);
   const heroes = units.filter((u) => u.isHero);
   const troops = units.filter((u) => !u.isHero);
 
@@ -1430,7 +1445,13 @@ function AddUnitToRegimentModal({ system, faction, regLabel, onClose, onPick }) 
           <button onClick={onClose} style={{ background: SECTION2, border: "none", color: TEXT, width: 30, height: 30, borderRadius: 8, fontSize: 16, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ padding: "0 18px 10px" }}>
-          <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Buscar en ${faction}...`} style={{ width: "100%" }} />
+          <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Buscar en ${faction}...`} style={{ width: "100%", marginBottom: 8 }} />
+          {collection && (
+            <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: MUTED, cursor: "pointer" }}>
+              <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
+              Solo mis tropas
+            </label>
+          )}
         </div>
         <div className="ab-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 18px 18px" }}>
           {heroes.length > 0 && (
@@ -1584,6 +1605,7 @@ function CollectionPage({ system, onOpenDetail }) {
   const [faction, setFaction] = useState(cfg.defaultFaction);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState("name-asc");
+  const [onlyOwned, setOnlyOwned] = useState(false);
   const [collection, setCollection] = useState(null); // { faction: { unitName: qty } }
 
   useEffect(() => { loadCollection(system).then(setCollection); }, [system]);
@@ -1608,15 +1630,16 @@ function CollectionPage({ system, onOpenDetail }) {
     });
   }
 
-  const units = useMemo(() => {
-    const raw = cfg.db[faction] || {};
-    const list = Object.values(raw).map((u) => cfg.normalize(faction, u))
-      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
-    return sortUnits(list, sortKey);
-  }, [faction, query, system, sortKey]);
-
   const facCollection = (collection && collection[faction]) || {};
   const ownedCount = Object.values(facCollection).filter((q) => q > 0).length;
+
+  const units = useMemo(() => {
+    const raw = cfg.db[faction] || {};
+    let list = Object.values(raw).map((u) => cfg.normalize(faction, u))
+      .filter((u) => u.name.toLowerCase().includes(query.toLowerCase()));
+    if (onlyOwned) list = list.filter((u) => (facCollection[u.name] || 0) > 0);
+    return sortUnits(list, sortKey);
+  }, [faction, query, system, sortKey, onlyOwned, facCollection]);
 
   if (collection === null) return <div style={{ color: MUTED, padding: 30, textAlign: "center" }}>Cargando colección…</div>;
 
@@ -1627,6 +1650,10 @@ function CollectionPage({ system, onOpenDetail }) {
         <Select value={faction} onChange={(e) => setFaction(e.target.value)} style={{ minWidth: 220 }} options={cfg.factions.map((f) => <option key={f} value={f}>{f}</option>)} />
         <SearchInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar unidad..." style={{ flex: 1, minWidth: 160 }} />
         <Select value={sortKey} onChange={(e) => setSortKey(e.target.value)} style={{ minWidth: 150 }} options={SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)} />
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: MUTED, cursor: "pointer" }}>
+          <input type="checkbox" checked={onlyOwned} onChange={(e) => setOnlyOwned(e.target.checked)} />
+          En posesión
+        </label>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {units.map((u) => {
@@ -1675,7 +1702,7 @@ function GameApp({ system, onExit }) {
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <div style={{ textAlign: "center" }}>
-          <img src={system === "aos" ? "aos.png" : "wh40k.png"} alt={cfg.label} style={{ height: 22, objectFit: "contain" }} />
+          <img src={system === "aos" ? "aos.png" : "wh40k.png"} alt={cfg.label} style={{ height: 30, objectFit: "contain" }} />
         </div>
         <div style={{ width: 42 }} />
       </div>
@@ -1720,7 +1747,7 @@ function MainMenu({ onSelect }) {
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <img src="aos.png" style={{ width: "100%", maxHeight: 150, objectFit: "contain" }} />
+          <img src="aos.png" style={{ width: "100%", objectFit: "contain" }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
             <span style={{ fontSize: 12, color: CARD_SUB }}>{AOS_FACTIONS.length} facciones registradas</span>
             <Pill>4ª Ed.</Pill>
@@ -1729,7 +1756,7 @@ function MainMenu({ onSelect }) {
         <button onClick={() => onSelect("w40k")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <img src="wh40k.png" style={{ width: "100%", maxHeight: 150, objectFit: "contain" }} />
+          <img src="wh40k.png" style={{ width: "100%", objectFit: "contain" }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
             <span style={{ fontSize: 12, color: CARD_SUB }}>{W40K_FACTIONS.length} facciones registradas</span>
             <Pill>11ª Ed.</Pill>
