@@ -1675,7 +1675,7 @@ function GameApp({ system, onExit }) {
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TEXT }}>{cfg.label}</div>
+          <img src={system === "aos" ? "aos.png" : "w40k.png"} alt={cfg.label} style={{ height: 22, objectFit: "contain" }} />
         </div>
         <div style={{ width: 42 }} />
       </div>
@@ -1712,16 +1712,16 @@ function GameApp({ system, onExit }) {
 ================================================================= */
 function MainMenu({ onSelect }) {
   return (
-    <div style={{ padding: "56px 20px 40px", width: "100%", boxSizing: "border-box"}}>
+    <div style={{ padding: "20px", width: "100%", minHeight: "100vh", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
       <div style={{ fontSize: 34, fontWeight: 800, textAlign: "center", color: TEXT, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 40 }}>
         Army Planner
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 420 }}>
         <button onClick={() => onSelect("aos")}
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: CARD_TEXT }}>Age of Sigmar</div>
+            <img src="aos.png" style={{ height: 28, objectFit: "contain" }} />
             <div style={{ fontSize: 12, color: CARD_SUB, marginTop: 3 }}>{AOS_FACTIONS.length} facciones registradas</div>
           </div>
           <Pill>4ª Ed.</Pill>
@@ -1730,7 +1730,7 @@ function MainMenu({ onSelect }) {
           style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
             boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: CARD_TEXT }}>Warhammer 40.000</div>
+            <img src="w40k.png" style={{ height: 28, objectFit: "contain" }} />
             <div style={{ fontSize: 12, color: CARD_SUB, marginTop: 3 }}>{W40K_FACTIONS.length} facciones registradas</div>
           </div>
           <Pill>11ª Ed.</Pill>
