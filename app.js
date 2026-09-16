@@ -1675,7 +1675,7 @@ function GameApp({ system, onExit }) {
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={MUTED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <div style={{ textAlign: "center" }}>
-          <img src={system === "aos" ? "aos.png" : "w40k.png"} alt={cfg.label} style={{ height: 22, objectFit: "contain" }} />
+          <img src={system === "aos" ? "aos.png" : "wh40k.png"} alt={cfg.label} style={{ height: 22, objectFit: "contain" }} />
         </div>
         <div style={{ width: 42 }} />
       </div>
@@ -1718,22 +1718,22 @@ function MainMenu({ onSelect }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 420 }}>
         <button onClick={() => onSelect("aos")}
-          style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
-            boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-          <div>
-            <img src="aos.png" style={{ height: 28, objectFit: "contain" }} />
-            <div style={{ fontSize: 12, color: CARD_SUB, marginTop: 3 }}>{AOS_FACTIONS.length} facciones registradas</div>
+          style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
+            boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <img src="aos.png" style={{ width: "100%", maxHeight: 90, objectFit: "contain" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+            <span style={{ fontSize: 12, color: CARD_SUB }}>{AOS_FACTIONS.length} facciones registradas</span>
+            <Pill>4ª Ed.</Pill>
           </div>
-          <Pill>4ª Ed.</Pill>
         </button>
         <button onClick={() => onSelect("w40k")}
-          style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "22px 20px", cursor: "pointer", border: "none",
-            boxShadow: cardShadow(), display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-          <div>
-            <img src="w40k.png" style={{ height: 28, objectFit: "contain" }} />
-            <div style={{ fontSize: 12, color: CARD_SUB, marginTop: 3 }}>{W40K_FACTIONS.length} facciones registradas</div>
+          style={{ textAlign: "left", background: CARD, borderRadius: 14, padding: "24px 20px", cursor: "pointer", border: "none",
+            boxShadow: cardShadow(), display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <img src="wh40k.png" style={{ width: "100%", maxHeight: 90, objectFit: "contain" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+            <span style={{ fontSize: 12, color: CARD_SUB }}>{W40K_FACTIONS.length} facciones registradas</span>
+            <Pill>11ª Ed.</Pill>
           </div>
-          <Pill>11ª Ed.</Pill>
         </button>
       </div>
     </div>
